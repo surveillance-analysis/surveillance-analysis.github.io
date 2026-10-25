@@ -142,7 +142,18 @@ header.top .meta{color:#C8C6C4}
 .formcard .badge{border-radius:3px;width:34px;height:34px;font-size:17px;font-family:var(--f-body)}
 .formcard .v b{font-family:var(--f-body);font-weight:300;font-size:26px}
 .kpi{border:none;border-radius:0;box-shadow:0 1px 2px rgba(0,0,0,.14);display:flex;flex-direction:column;align-items:center;text-align:center;padding:14px 10px}
-.kpi.lead{box-shadow:0 1px 2px rgba(0,0,0,.14),inset 0 3px 0 var(--accent)}
+.kpi.lead{box-shadow:0 1px 2px rgba(0,0,0,.14)}
+:root{--pg-bg:#DFF1E5;--pg-fg:#1E5E36;--pa-bg:#FDF0D9;--pa-fg:#7A4D00;--pr-bg:#FBE2DF;--pr-fg:#8A1F16;--pn-bg:#EFEEED;--pn-fg:#605E5C}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--pg-bg:#1F3A2A;--pg-fg:#8FD6A8;--pa-bg:#3D3016;--pa-fg:#F0C77A;--pr-bg:#45201C;--pr-fg:#F5A39A;--pn-bg:#33312F;--pn-fg:#A19F9D}}
+:root[data-theme="dark"]{--pg-bg:#1F3A2A;--pg-fg:#8FD6A8;--pa-bg:#3D3016;--pa-fg:#F0C77A;--pr-bg:#45201C;--pr-fg:#F5A39A;--pn-bg:#33312F;--pn-fg:#A19F9D}
+.kpi{position:relative}
+.kpi::before{content:"";position:absolute;left:0;right:0;top:0;height:5px;background:var(--stc,transparent)}
+.kpi.st-g{--stc:var(--b-reg);--sbg:var(--pg-bg);--sfg:var(--pg-fg)}
+.kpi.st-a{--stc:var(--b-irr);--sbg:var(--pa-bg);--sfg:var(--pa-fg)}
+.kpi.st-r{--stc:var(--b-poor);--sbg:var(--pr-bg);--sfg:var(--pr-fg)}
+.kpi.st-n{--stc:#C8C6C4;--sbg:var(--pn-bg);--sfg:var(--pn-fg)}
+.kpi .s{margin-bottom:8px}
+.kpi .st{order:4;margin-top:auto;font-size:11px;font-weight:700;padding:2px 10px;border-radius:999px;background:var(--sbg);color:var(--sfg)}
 .kpi .v{order:1;font-family:var(--f-body)!important;font-weight:300;font-size:36px}
 .kpi .l{order:2;font-weight:600;color:var(--ink);font-size:12.5px}
 .kpi .s{order:3;font-size:11px}
@@ -407,6 +418,7 @@ const pct=(v,d=1)=>v==null?'—':(100*v).toFixed(d)+'%';
 const fmt=n=>n==null?'—':Number(n).toLocaleString('en-IN');
 const BAND_NAME={reg:'Regular',irr:'Irregular',poor:'Poor',sil:'Silent'};
 const BAND_VAR={reg:'var(--b-reg)',irr:'var(--b-irr)',poor:'var(--b-poor)',sil:'var(--b-sil)'};
+const ST_LABEL={g:'On target',a:'Watch',r:'Follow up',n:'No benchmark'};
 
 const S={
   live:false,canWrite:false,canAdmin:false,writer:null,downloads:true,loadError:'',
@@ -512,14 +524,19 @@ function renderKPIs(ids,period,agg){
     if(pa.rate!=null&&tot.rate!=null){const d=(tot.rate-pa.rate)*100;delta=`<span class="delta ${d>=0?'up':'down'}">${d>=0?'▲':'▼'} ${Math.abs(d).toFixed(1)} pts vs ${monthShort(pm)}</span>`;}
   }
   const per=period.length?(period.length===1?monthLabel(period[0]):monthShort(period[0])+' – '+monthShort(period[period.length-1])):'—';
-  const k=(l,v,s,cls='')=>`<div class="kpi ${cls}"><span class="l">${l}</span><span class="v num" style="font-family:var(--f-disp)">${v}</span><span class="s">${s}</span></div>`;
+  const k=(l,v,s,st='')=>`<div class="kpi${st?' st-'+st:''}"><span class="l">${l}</span><span class="v num" style="font-family:var(--f-disp)">${v}</span><span class="s">${s}</span>${st?`<span class="st">${ST_LABEL[st]}</span>`:''}</div>`;
+  /* status rules (see KPI_Tile_Colour_Rules.xlsx): higher-is-better hi(v,green,red), lower-is-better lo(v,green,red) */
+  const hi=(v,g,r)=>v==null?'':v>=g?'g':v<r?'r':'a';
+  const lo=(v,g,r)=>v==null?'':v<=g?'g':v>r?'r':'a';
+  const tg=target()/100;const nf=facs.length;
+  const missShare=tot.exp?tot.n/tot.exp:null;const wkShare=nf?wk/nf:null;
   $('#kpis').innerHTML=[
-    k('Reporting completeness',pct(tot.rate),(delta||'Target '+target()+'%')+` · ${esc(per)}`,'lead'),
-    k('Facilities meeting target',facs.length?`${meet}<span style="font-size:16px;color:var(--muted)"> / ${facs.length}</span>`:'—',facs.length?pct(meet/facs.length,0)+' of facilities ≥ '+target()+'%':''),
-    k('Silent facilities',fmt(sil),'No report on any expected day'),
-    k('Facility-days not reported',fmt(tot.n),'of '+fmt(tot.exp)+' expected reporting days'),
-    k('NIL share of reports',pct(tot.nilShare),fmt(tot.z)+' NIL of '+fmt(tot.rep)+' reports'),
-    k('Week-long gaps',fmt(wk),'Facilities with ≥ 6 consecutive missed days'),
+    k('Reporting completeness',pct(tot.rate),(delta||'Target '+target()+'%')+` · ${esc(per)}`,hi(tot.rate,tg,Math.min(0.70,tg))),
+    k('Facilities meeting target',nf?`${meet}<span style="font-size:16px;color:var(--muted)"> / ${nf}</span>`:'—',nf?pct(meet/nf,0)+' of facilities ≥ '+target()+'%':'',hi(nf?meet/nf:null,0.90,0.75)),
+    k('Silent facilities',fmt(sil),'No report on any expected day',nf?lo(sil,0,0):''),
+    k('Facility-days not reported',fmt(tot.n),(missShare==null?'':pct(missShare)+' of ')+fmt(tot.exp)+' expected reporting days',lo(missShare,0.05,0.20)),
+    k('NIL share of reports',pct(tot.nilShare),fmt(tot.z)+' NIL of '+fmt(tot.rep)+' reports',tot.rep?'n':''),
+    k('Week-long gaps',fmt(wk),(wkShare==null?'':pct(wkShare)+' of facilities with ')+'≥ 6 consecutive missed days',lo(wkShare,0,0.05)),
   ].join('');
 }
 
