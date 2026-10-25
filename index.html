@@ -862,21 +862,71 @@ bindFilters();bindDownloads();render();
 const CFG=window.SPL_CONFIG||{};const API=String(CFG.apiUrl||'').trim();
 function getLS(k){try{return localStorage.getItem(k)||'';}catch(e){return'';}}
 function setLS(k,v){try{if(v)localStorage.setItem(k,v);else localStorage.removeItem(k);}catch(e){}}
-async function api(method,body){
+async function fetchT(url,opt,ms){
+  const ac=new AbortController();const to=setTimeout(()=>ac.abort(),ms);
+  try{return await fetch(url,Object.assign({signal:ac.signal},opt||{}));}
+  catch(e){throw Object.assign(new Error(e.name==='AbortError'?'Google did not answer in time':'network error'),{code:e.name==='AbortError'?'timeout':'network'});}
+  finally{clearTimeout(to);}
+}
+async function sha256(t){try{return [...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t)))].map(b=>b.toString(16).padStart(2,'0')).join('');}catch(e){return '';}}
+async function api(method,body,ms){
   if(!API)throw Object.assign(new Error('not configured'),{code:'not_configured'});
   const res=method==='GET'
-    ?await fetch(API+(API.includes('?')?'&':'?')+'action=all&key='+encodeURIComponent(getLS('spl-view-key'))+'&t='+Date.now())
-    :await fetch(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body)});
+    ?await fetchT(API+(API.includes('?')?'&':'?')+'action=all&key='+encodeURIComponent(getLS('spl-view-key'))+'&t='+Date.now(),{},ms||45000)
+    :await fetchT(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body)},ms||45000);
   if(!res.ok)throw Object.assign(new Error('the data store answered '+res.status),{code:'http'});
   const j=await res.json();
   if(!j.ok)throw Object.assign(new Error(j.message||j.error||'error'),{code:j.error||'error'});
   return j;
 }
-function writeOps(ops){return api('POST',{action:'write',key:S.writer&&S.writer.key,name:S.writer&&S.writer.name,ops});}
+/* Fast read: the dashboard reads the Google Sheet directly (shared as "Anyone with the link can view").
+   Saves still go through the Apps Script web app, which checks the upload passcode. */
+const SHEET=String(CFG.sheetId||'').trim();
+async function readSheet(){
+  const url='https://docs.google.com/spreadsheets/d/'+encodeURIComponent(SHEET)+'/gviz/tq?tqx=out:json&headers=1&sheet=store&tq='+encodeURIComponent('select *')+'&t='+Date.now();
+  let lastErr;
+  for(let attempt=0;attempt<3;attempt++){
+    try{
+      const res=await fetchT(url,{cache:'no-store'},20000);const t=await res.text();
+      const a=t.indexOf('{'),b=t.lastIndexOf('}');
+      if(a<0||b<a)throw Object.assign(new Error('The data sheet is not shared for viewing'),{code:'sheet_private'});
+      const j=JSON.parse(t.slice(a,b+1));
+      if(j.status==='error')throw Object.assign(new Error((j.errors&&j.errors[0]&&(j.errors[0].detailed_message||j.errors[0].message))||'sheet error'),{code:'sheet'});
+      const docs=[];
+      for(const row of (j.table&&j.table.rows)||[]){
+        const c=(row.c||[]).map(x=>x&&x.v!=null?String(x.v):'');const path=c[0];if(!path||path==='path')continue;
+        const n=Number(c[2])||0;let s='';for(let i=0;i<n;i++)s+=(c[3+i]||'').replace(/^~/,'');
+        try{docs.push({path,data:JSON.parse(s)});}catch(e){}
+      }
+      return docs;
+    }catch(e){lastErr=e;if(e.code==='sheet_private')break;await new Promise(r=>setTimeout(r,1500*(attempt+1)));}
+  }
+  throw lastErr;
+}
+async function viewAllowed(){if(!CFG.viewCodeHash)return true;return (await sha256(getLS('spl-view-key')))===String(CFG.viewCodeHash).toLowerCase();}
+async function writeOps(ops){
+  const body={action:'write',key:S.writer&&S.writer.key,name:S.writer&&S.writer.name,ops};
+  try{return await api('POST',body,25000);}
+  catch(e){
+    if(!(SHEET&&(e.code==='timeout'||e.code==='network')))throw e;
+    /* Google sometimes saves but is slow to answer: confirm the save from the sheet itself */
+    for(let k=0;k<4;k++){
+      await new Promise(r=>setTimeout(r,5000));
+      try{const docs=await readSheet();const map=new Map(docs.map(d=>[d.path,d.data]));
+        if(ops.every(o=>o.op==='delete'?!map.has(o.path):map.has(o.path)&&JSON.stringify(map.get(o.path))===JSON.stringify(o.data)))return {ok:true,verified:true};}catch(_){}
+    }
+    throw Object.assign(new Error('Google did not confirm the save. Use Refresh in a minute to check whether it went through'),{code:'unconfirmed'});
+  }
+}
 async function loadAll(){
   try{
-    const j=await api('GET');const m={S:{},P:{},L:{}},f={S:{},P:{},L:{}},ups=[];let st=null;
-    for(const d of j.docs||[]){const [c,id]=String(d.path).split('/');const v=d.data||{};
+    let docs;
+    if(SHEET){
+      if(!(await viewAllowed()))throw Object.assign(new Error('Access code needed'),{code:'view_key'});
+      docs=await readSheet();
+    }else docs=(await api('GET')).docs||[];
+    const m={S:{},P:{},L:{}},f={S:{},P:{},L:{}},ups=[];let st=null;
+    for(const d of docs){const [c,id]=String(d.path).split('/');const v=d.data||{};
       if(c==='months'&&m[v.form])m[v.form][v.month]=v.fac||{};
       else if(c==='facilities'&&f[v.form])f[v.form]=v.list||{};
       else if(c==='uploads')ups.push(v);
@@ -884,8 +934,8 @@ async function loadAll(){
     S.months=m;S.facs=f;S.uploads=ups;if(st)S.settings=Object.assign({district:'',state:'',target:80},st);
     S.live=true;S.loadError='';$('#gate').hidden=true;
   }catch(e){
-    S.live=false;S.loadError=e.code||'error';
-    if(e.code==='view_key'){$('#gate').hidden=false;$('#g-msg').textContent=getLS('spl-view-key')?'That access code is not correct.':'';}
+    S.live=false;S.loadError=e.code==='locked'?'view_key':(e.code||'error');
+    if(e.code==='view_key'||(e.code==='locked'&&!S.live)){$('#gate').hidden=false;$('#g-msg').textContent=e.code==='locked'?e.message:(getLS('spl-view-key')?'That access code is not correct.':'');}
   }
   if(!API)S.canWrite=true;
   S.loaded=true;render();
@@ -894,9 +944,9 @@ function lockUploads(){S.writer=null;S.canWrite=!API;S.canAdmin=false;setLS('spl
 $('#u-go').addEventListener('click',async()=>{
   const name=$('#u-name').value.trim(),key=$('#u-key').value;const msg=$('#u-msg');
   if(!name||!key){msg.textContent='Enter your name and the upload passcode.';return;}
-  msg.textContent='Checking…';
-  try{await api('POST',{action:'auth',key});S.writer={name,key};S.canWrite=S.canAdmin=true;setLS('spl-writer',JSON.stringify(S.writer));msg.textContent='';$('#u-key').value='';render();}
-  catch(e){msg.textContent=e.code==='bad_key'?'That passcode is not correct.':'Could not check the passcode: '+e.message;}
+  msg.textContent='Checking the passcode… Google can take up to a minute.';
+  try{await api('POST',{action:'auth',key},60000);S.writer={name,key};S.canWrite=S.canAdmin=true;setLS('spl-writer',JSON.stringify(S.writer));msg.textContent='';$('#u-key').value='';render();}
+  catch(e){msg.textContent=e.code==='bad_key'?'That passcode is not correct.':e.code==='locked'?e.message:'Could not check the passcode: '+e.message+'. Try again.';}
 });
 $('#g-go').addEventListener('click',()=>{setLS('spl-view-key',$('#g-key').value.trim());$('#g-msg').textContent='Opening…';loadAll();});
 $('#g-key').addEventListener('keydown',e=>{if(e.key==='Enter')$('#g-go').click();});
