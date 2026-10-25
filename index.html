@@ -1,0 +1,892 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>S·P·L Reporting Monitor</title>
+<meta name="description" content="District IDSP reporting-completeness review for IHIP S, P and L Forms">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="config.js"></script>
+<style>
+[hidden]{display:none!important}
+html,body{margin:0}
+img{max-width:100%}
+/* Layout: analyst report — dark title bar, filter pane on the left (stacks on phones), form tabs, KPI cards, then figures, tables and data management */
+:root{--bg:#E8E8E8;--panel:#FFFFFF;--ink:#252423;--muted:#605E5C;--line:#E1DFDD;--soft:#F3F2F1;--accent:#1A66B0;--accent-ink:#FFFFFF;--accent-soft:#DDEAF7;
+--y:#1A66B0;--nil:#8DB9E3;--n:#D1483B;--none:#ECEBEA;--b-reg:#3A8C59;--b-irr:#E6A23C;--b-poor:#D1483B;--b-sil:#5D4A8A;
+--f-disp:"Open Sans","Segoe UI",system-ui,sans-serif;--f-body:"Open Sans","Segoe UI",system-ui,sans-serif;--bar:#252423;--tip-bg:#252423;--tip-ink:#FFFFFF;--f-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#1B1A19;--panel:#262524;--ink:#EDEBE9;--muted:#A19F9D;--line:#3B3A39;--soft:#2F2E2D;--accent:#5EA3E6;--accent-ink:#1B1A19;--accent-soft:#233A52;--y:#5EA3E6;--nil:#2E5478;--n:#E8695D;--none:#33312F;--b-reg:#5DB37D;--b-irr:#F0B75C;--b-poor:#E8695D;--b-sil:#A08AD6;--bar:#111110;--tip-bg:#EDEBE9;--tip-ink:#1B1A19;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#1B1A19;--panel:#262524;--ink:#EDEBE9;--muted:#A19F9D;--line:#3B3A39;--soft:#2F2E2D;--accent:#5EA3E6;--accent-ink:#1B1A19;--accent-soft:#233A52;--y:#5EA3E6;--nil:#2E5478;--n:#E8695D;--none:#33312F;--b-reg:#5DB37D;--b-irr:#F0B75C;--b-poor:#E8695D;--b-sil:#A08AD6;--bar:#111110;--tip-bg:#EDEBE9;--tip-ink:#1B1A19;color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.45}
+.wrap{max-width:1320px;margin:0 auto;padding-block:20px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:18px}
+h1,h2,h3{font-family:var(--f-disp);font-weight:600;margin:0;text-wrap:balance;letter-spacing:.01em}
+h1{font-size:28px;line-height:1.1}
+h2{font-size:19px}
+.eyebrow{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.muted{color:var(--muted)}
+.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+header.top{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between}
+header.top .meta{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12.5px;color:var(--muted)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;min-width:0}
+.panel-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6px 12px;margin-bottom:12px}
+.panel-head p{margin:0;font-size:12.5px;color:var(--muted)}
+/* form strip */
+.forms{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px}
+.formcard{all:unset;cursor:pointer;display:grid;grid-template-columns:auto 1fr;gap:4px 14px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;min-width:0}
+.formcard:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.formcard[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);background:var(--accent-soft)}
+.formcard .badge{grid-row:span 2;width:42px;height:42px;border-radius:8px;display:grid;place-items:center;font-family:var(--f-disp);font-weight:700;font-size:22px;background:var(--soft);color:var(--ink)}
+.formcard[aria-pressed="true"] .badge{background:var(--accent);color:var(--accent-ink)}
+.formcard .t{font-weight:600;font-size:13px}
+.formcard .v{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.formcard .v b{font-family:var(--f-disp);font-size:24px;color:var(--ink);font-weight:600}
+.formcard svg{grid-column:1/-1;width:100%;height:28px;display:block}
+/* filters */
+.filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;align-items:end}
+.filters label{display:grid;gap:4px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;min-width:0}
+select,input[type=text],input[type=number]{font:inherit;font-size:13.5px;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:7px 9px;width:100%;min-width:0;text-transform:none;letter-spacing:0}
+select:focus-visible,input:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+button{font:inherit;font-size:13px;cursor:pointer;border-radius:7px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:7px 12px;font-weight:500}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+button.danger{background:var(--b-poor);border-color:var(--b-poor);color:#fff}
+button:disabled{opacity:.5;cursor:default}
+.linkbtn{border:none;background:none;padding:0;color:var(--accent);text-decoration:underline;text-underline-offset:2px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;border:1px solid var(--line);border-radius:999px;padding:2px 10px;background:var(--soft)}
+.chip button{border:none;background:none;padding:0 0 0 2px;font-size:14px;line-height:1;color:var(--muted)}
+/* kpis */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:grid;gap:2px;align-content:start;min-width:0}
+.kpi .l{font-size:12px;color:var(--muted);font-weight:500}
+.kpi .v{font-family:var(--f-disp);font-size:30px;font-weight:600;line-height:1.1}
+.kpi .s{font-size:12px;color:var(--muted)}
+.kpi.lead{border-color:var(--accent)}
+.delta.up{color:var(--b-reg)} .delta.down{color:var(--b-poor)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,520px),1fr));gap:18px}
+.chart{width:100%;overflow-x:auto}
+.chart svg{display:block;width:100%;height:auto}
+svg text{fill:var(--muted);font-family:var(--f-body);font-size:11px}
+svg .lab{fill:var(--ink);font-weight:500}
+svg .big{fill:var(--ink);font-family:var(--f-mono);font-size:10.5px}
+.legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--muted);margin-top:8px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+/* table */
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-size:12.5px}
+th,td{padding:7px 9px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{position:sticky;top:0;background:var(--soft);font-weight:600;font-size:11.5px;color:var(--muted);cursor:pointer;user-select:none}
+th[aria-sort="ascending"]::after{content:" ▲";font-size:9px}
+th[aria-sort="descending"]::after{content:" ▼";font-size:9px}
+td.r,th.r{text-align:right}
+tbody tr{cursor:pointer}
+tbody tr:hover{background:var(--soft)}
+tbody tr.sel{background:var(--accent-soft)}
+.pill{display:inline-block;font-size:11px;font-weight:600;border-radius:999px;padding:1px 8px;color:#fff;letter-spacing:.02em}
+.pill.reg{background:var(--b-reg)} .pill.irr{background:var(--b-irr);color:#2a1d05} .pill.poor{background:var(--b-poor)} .pill.sil{background:var(--b-sil)}
+:root[data-theme="dark"] .pill.sil{color:#1a0f16}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .pill.sil{color:#1a0f16}}
+.mstrip{display:inline-flex;gap:2px;vertical-align:middle}
+.mstrip span{width:9px;height:14px;border-radius:2px;background:var(--none)}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+/* drill */
+.days{display:grid;gap:3px;overflow-x:auto}
+.dayrow{display:grid;grid-template-columns:64px repeat(31,minmax(14px,1fr)) 64px;gap:2px;align-items:center;min-width:620px;font-size:11px}
+.dayrow span.c{height:18px;border-radius:2px;background:transparent}
+.dayrow span.c.Y{background:var(--y)} .dayrow span.c.Z{background:var(--nil)} .dayrow span.c.N{background:var(--n)}
+.dayrow .h{text-align:center;color:var(--muted);font-size:10px}
+/* data management */
+.drop{border:1.5px dashed var(--line);border-radius:10px;padding:18px;display:grid;gap:8px;justify-items:start;background:var(--soft)}
+.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+.pending{display:grid;gap:10px}
+.pcard{border:1px solid var(--line);border-radius:8px;padding:12px;display:grid;gap:8px;background:var(--panel)}
+.pcard .row{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;font-size:12.5px}
+.warn{color:var(--b-irr)} .err{color:var(--b-poor)} .ok{color:var(--b-reg)}
+.cov{border-collapse:collapse;font-size:12px}
+.cov td,.cov th{border:1px solid var(--line);padding:5px 8px;text-align:center;cursor:default;position:static}
+.cov td.has{background:var(--accent-soft)}
+.cov td button{border:none;background:none;padding:0 2px;color:var(--muted);font-size:13px}
+.notice{border-left:3px solid var(--b-irr);padding:8px 12px;background:var(--soft);border-radius:0 8px 8px 0;font-size:13px}
+details summary{cursor:pointer;font-family:var(--f-disp);font-weight:600;font-size:17px}
+details .defs{display:grid;gap:8px;margin-top:10px;max-width:900px}
+details .defs p{margin:0}
+.empty{padding:28px;text-align:center;color:var(--muted)}
+#tip{position:fixed;z-index:20;pointer-events:none;background:var(--tip-bg);color:var(--tip-ink);font-size:12px;padding:6px 9px;border-radius:6px;white-space:pre-line;max-width:280px;opacity:0;transition:opacity .08s}
+@media (prefers-reduced-motion: reduce){#tip{transition:none}}
+.hdr-refresh{color:#fff;font-size:12.5px}
+.confirm{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:12.5px}
+.ph{display:grid;gap:2px;min-width:0}
+.fig{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);font-weight:600}
+.src{margin:10px 0 0;font-size:11.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:6px}
+.src:empty{display:none}
+.flist{margin:0;padding-left:20px;display:grid;gap:7px;max-width:110ch}
+.flist li{padding-left:2px}
+.flist li::marker{color:var(--accent)}
+.foot{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px 18px;font-size:11.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:10px}
+/* ---- Analyst Report skin ---- */
+body{font-size:13.5px}
+.wrap{padding-block:0 40px;gap:12px;max-width:1400px}
+header.top{background:var(--bar);box-shadow:0 0 0 100vmax var(--bar);clip-path:inset(0 -100vmax);padding-block:12px}
+header.top h1{color:#fff;font-size:20px;font-weight:600;letter-spacing:0}
+header.top .eyebrow{color:#C8C6C4;letter-spacing:.04em}
+header.top .meta{color:#C8C6C4}
+.panel{border:none;border-radius:0;box-shadow:0 1px 2px rgba(0,0,0,.14);padding:12px 14px}
+.panel h2{font-size:14px;font-weight:600;font-family:var(--f-body)}
+.panel-head p{font-size:11.5px}
+.fig{color:var(--muted);font-size:10px}
+.forms{grid-template-columns:repeat(3,minmax(0,1fr));gap:0;border-bottom:1px solid #C8C6C4}
+.formcard{border:none;border-radius:0;background:transparent;border-bottom:3px solid transparent;padding:10px 14px}
+.formcard[aria-pressed="true"]{background:var(--panel);box-shadow:none;border-bottom-color:var(--accent)}
+.formcard .badge{border-radius:3px;width:34px;height:34px;font-size:17px;font-family:var(--f-body)}
+.formcard .v b{font-family:var(--f-body);font-weight:300;font-size:26px}
+.kpi{border:none;border-radius:0;box-shadow:0 1px 2px rgba(0,0,0,.14);display:flex;flex-direction:column;align-items:center;text-align:center;padding:14px 10px}
+.kpi.lead{box-shadow:0 1px 2px rgba(0,0,0,.14),inset 0 3px 0 var(--accent)}
+.kpi .v{order:1;font-family:var(--f-body)!important;font-weight:300;font-size:36px}
+.kpi .l{order:2;font-weight:600;color:var(--ink);font-size:12.5px}
+.kpi .s{order:3;font-size:11px}
+th{background:var(--panel);color:var(--ink);border-bottom:2px solid var(--ink);font-size:11.5px}
+td{border-bottom-color:var(--soft)}
+select,input[type=text],input[type=number],button{border-radius:2px;font-size:12.5px}
+.filters label{font-size:10.5px;letter-spacing:.02em;color:var(--ink)}
+.pill{border-radius:2px}
+@media (min-width:1000px){
+ .wrap{grid-template-columns:250px minmax(0,1fr);align-items:start}
+ .wrap>*{grid-column:2}
+ .wrap>header.top{grid-column:1/-1}
+ .wrap>section[aria-label="Filters"]{grid-column:1;grid-row:2/span 14;position:sticky;top:12px}
+ .kpis{grid-template-columns:repeat(6,minmax(0,1fr))}
+ .wrap>section[aria-label="Filters"] .filters{grid-template-columns:1fr}
+ .wrap>section[aria-label="Filters"]::before{content:"Filters";display:block;font-weight:600;font-size:14px;margin-bottom:10px}
+}
+@media (max-width:640px){.forms{grid-template-columns:1fr}.formcard{border-bottom-width:0;border-left:3px solid transparent}.formcard[aria-pressed="true"]{border-left-color:var(--accent)}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div style="display:grid;gap:4px">
+      <span class="eyebrow" id="hdr-eyebrow">IDSP · IHIP daily reporting</span>
+      <h1 id="hdr-title">District S·P·L Reporting Monitor</h1>
+    </div>
+    <div class="meta" id="hdr-meta"><span>Loading reporting data…</span></div>
+  </header>
+
+  <div id="mode-note" hidden class="notice"></div>
+
+  <section class="panel" id="gate" hidden aria-label="Access code">
+    <h2 style="margin-bottom:6px">Enter the access code</h2>
+    <p class="muted" style="margin:0 0 10px">This dashboard is limited to the district review team. Use the access code shared by the District Surveillance Unit.</p>
+    <div class="toolbar"><input type="password" id="g-key" aria-label="Access code" style="width:220px"><button type="button" class="primary" id="g-go">Open dashboard</button><span id="g-msg" class="err" style="font-size:12.5px"></span></div>
+  </section>
+
+  <section class="forms" id="forms" aria-label="Choose reporting form"></section>
+
+  <section class="panel" aria-label="Filters">
+    <div class="filters">
+      <label>From month<select id="f-from"></select></label>
+      <label>To month<select id="f-to"></select></label>
+      <label>Block<select id="f-block"></select></label>
+      <label>Facility type<select id="f-type"></select></label>
+      <label>Facility sub-type<select id="f-sub"></select></label>
+      <label>Ownership<select id="f-own"><option value="">All</option><option>Public</option><option>Private</option></select></label>
+      <label>Facility<select id="f-fac"></select></label>
+      <label>Performance band<select id="f-band"><option value="">All bands</option><option value="reg">Regular (≥ target)</option><option value="irr">Irregular</option><option value="poor">Poor (&lt; 50%)</option><option value="sil">Silent (0%)</option><option value="below">All below target</option></select></label>
+      <button id="f-reset" type="button">Reset filters</button>
+    </div>
+    <div class="chips" id="active-chips" style="margin-top:10px"></div>
+  </section>
+
+  <section class="kpis" id="kpis" aria-label="Key indicators"></section>
+
+  <section class="panel findings" aria-label="Key findings">
+    <div class="panel-head"><h2>Key findings</h2><p id="findings-sub"></p></div>
+    <ul id="findings" class="flist"></ul>
+    <p class="src" id="findings-note"></p>
+  </section>
+
+  <div class="grid2">
+    <section class="panel">
+      <div class="panel-head"><div class="ph"><span class="fig">Figure 1</span><h2 id="trend-h">Monthly reporting trend</h2></div><p>Share of expected reporting days · selected months highlighted</p></div>
+      <div class="chart" id="trend"></div>
+      <div class="legend"><span><i style="background:var(--y)"></i>Reported (cases)</span><span><i style="background:var(--nil)"></i>Reported NIL</span><span><i style="background:var(--n)"></i>Not reported</span><span><i style="background:var(--ink);height:2px;vertical-align:3px"></i>Completeness %</span><span><i style="border-top:2px dashed var(--muted);background:none;height:0;vertical-align:3px"></i>Target <span class="tgt-n">80</span>%</span></div>
+      <p class="src" data-src></p>
+    </section>
+    <section class="panel">
+      <div class="panel-head"><div class="ph"><span class="fig">Figure 2</span><h2>Block-wise completeness</h2></div><p>Selected period · click a block to filter</p></div>
+      <div class="chart" id="blocks"></div>
+      <div class="legend" id="band-legend"></div>
+      <p class="src" data-src></p>
+    </section>
+  </div>
+
+  <section class="panel">
+    <div class="panel-head"><div class="ph"><span class="fig">Figure 3</span><h2>Block × month completeness</h2></div><p>Comparative performance over time · click a cell to focus that block and month</p></div>
+    <div class="chart" id="heat"></div>
+    <p class="src" data-src="all"></p>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div class="ph"><span class="fig">Table 1</span><h2>Facility-wise reporting status</h2><p id="fac-sub">Selected period · lowest completeness first · click a row for the daily record</p></div>
+      <div class="toolbar">
+        <input type="text" id="f-search" placeholder="Search facility or ID" style="width:200px" aria-label="Search facility">
+        <button type="button" id="dl-fac" hidden>Download follow-up list (.xlsx)</button>
+        <button type="button" id="dl-reg" hidden>Download reporting register (.xlsx)</button>
+      </div>
+    </div>
+    <div class="tablewrap"><table id="factable"><thead></thead><tbody></tbody></table></div>
+    <div class="toolbar" style="margin-top:8px"><span class="muted" id="fac-count"></span><button type="button" class="linkbtn" id="fac-more" hidden>Show all</button></div>
+    <p class="src" data-src></p>
+  </section>
+
+  <section class="panel" id="drill" hidden>
+    <div class="panel-head"><div style="display:grid;gap:2px"><span class="eyebrow">Daily reporting record</span><h2 id="drill-h"></h2><p id="drill-sub"></p></div><button type="button" id="drill-close">Close</button></div>
+    <div class="days" id="drill-days"></div>
+    <div class="legend"><span><i style="background:var(--y)"></i>Reported (cases)</span><span><i style="background:var(--nil)"></i>NIL</span><span><i style="background:var(--n)"></i>Not reported</span><span><i style="background:var(--none)"></i>No reporting day in extract</span></div>
+  </section>
+
+  <section class="panel" id="data-panel">
+    <div class="panel-head"><div style="display:grid;gap:2px"><h2>Add monthly data</h2><p>Upload the IHIP “Consolidated Reporting Summary” export for S, P or L Form. New months are added and repeated months are updated, facility by facility and day by day.</p></div></div>
+    <div id="upload-area">
+      <p class="muted" id="u-who" style="margin:0 0 8px;font-size:12.5px"></p>
+      <div class="drop" id="drop">
+        <strong>Drop IHIP export files here</strong>
+        <span class="muted" style="font-size:12.5px">.xlsx, .xls, .xlsb or .csv · one or several files · any month range</span>
+        <label class="linkbtn" style="cursor:pointer"><input type="file" id="file" accept=".xlsx,.xls,.xlsb,.csv" multiple hidden>Choose files</label>
+      </div>
+      <div class="pending" id="pending" style="margin-top:12px"></div>
+    </div>
+    <div id="upload-ro" hidden>
+      <p class="muted" style="margin:0 0 8px">Adding data is limited to the district team. Enter your name and the upload passcode.</p>
+      <div class="filters" style="max-width:720px">
+        <label>Your name<input type="text" id="u-name" autocomplete="name"></label>
+        <label>Upload passcode<input type="password" id="u-key" autocomplete="current-password"></label>
+        <button type="button" class="primary" id="u-go">Unlock uploads</button>
+      </div>
+      <p id="u-msg" class="err" style="margin:6px 0 0;font-size:12.5px"></p>
+    </div>
+    <div class="grid2" style="margin-top:16px">
+      <div style="min-width:0">
+        <h3 style="font-size:15px;margin-bottom:8px">Data on the dashboard</h3>
+        <div style="overflow-x:auto"><table class="cov" id="coverage"></table></div>
+        <div id="cov-confirm" class="confirm" style="margin-top:8px"></div>
+      </div>
+      <div style="min-width:0">
+        <h3 style="font-size:15px;margin-bottom:8px">Upload history</h3>
+        <div id="uplog" style="display:grid;gap:6px;font-size:12.5px"></div>
+      </div>
+    </div>
+    <div id="settings-area" hidden style="margin-top:16px;display:grid;gap:8px">
+      <h3 style="font-size:15px">Dashboard settings</h3>
+      <div class="filters" style="max-width:640px">
+        <label>District<input type="text" id="s-district"></label>
+        <label>State<input type="text" id="s-state"></label>
+        <label>Target completeness %<input type="number" id="s-target" min="1" max="100"></label>
+        <label style="grid-column:1/-1">Prepared by (footer line)<input type="text" id="s-credit" placeholder="e.g. District Surveillance Unit, Ganjam"></label>
+        <button type="button" id="s-save">Save settings</button>
+      </div>
+      <span id="s-msg" class="muted" style="font-size:12.5px"></span>
+    </div>
+  </section>
+
+  <section class="panel">
+    <details>
+      <summary>How the indicators are calculated</summary>
+      <div class="defs">
+        <p><b>Expected reporting days</b> — every date column in the IHIP export is one expected report for each listed facility (Sundays and holidays without a column are not counted). Cell values: <span class="num">Y</span> reported with cases, <span class="num">NIL</span> reported nil, <span class="num">N</span> not reported.</p>
+        <p><b>Reporting completeness %</b> = (Y + NIL days) ÷ expected reporting days × 100, counted cell by cell from the daily columns, never from pre-aggregated totals.</p>
+        <p><b>NIL share</b> = NIL days ÷ reported days. A rising NIL share with steady completeness is a data-quality signal worth checking at the facility (zero-reporting fatigue).</p>
+        <p><b>Performance band</b> for each facility over the selected period: Regular ≥ target (<span id="def-target">80</span>%), Irregular 50% to below target, Poor below 50%, Silent 0% (no report on any expected day).</p>
+        <p><b>Longest gap</b> = most consecutive expected reporting days not reported. <b>Current gap</b> = consecutive non-reported days up to the last date in the period, the first list for phone follow-up.</p>
+        <p><b>Facilities meeting target</b> = facilities with completeness ≥ target ÷ facilities with at least one expected day. Forms are never pooled: S, P and L have different reporting units, so each is analysed on its own and compared side by side.</p>
+        <p><b>Not available in the export</b>: report timeliness (time of submission) and case counts. Completeness here measures whether a facility reported on each day, not when.</p>
+      </div>
+    </details>
+  </section>
+  <footer class="foot" id="foot"></footer>
+</div>
+<div id="tip" role="tooltip"></div>
+
+<script>
+/* ===== core (pure functions, no DOM) ===== */
+const FORMS=['S','P','L'];
+const FORM_NAME={S:'S Form · Sub Centres',P:'P Form · Health facilities',L:'L Form · Laboratories'};
+const MON=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+const pad=n=>String(n).padStart(2,'0');
+const CODE_MAP={'Y':'Y','YES':'Y','NIL':'0','NIL REPORT':'0','N':'N','NO':'N'};
+const BLANK='.'.repeat(31);
+function monthLabel(m){const [y,mm]=m.split('-');return MON[+mm-1][0].toUpperCase()+MON[+mm-1].slice(1)+' '+y;}
+function monthShort(m){const [y,mm]=m.split('-');return MON[+mm-1][0].toUpperCase()+MON[+mm-1].slice(1,3)+" '"+y.slice(2);}
+function clean(v){return String(v??'').replace(/\s+/g,' ').trim();}
+function parseDateHeader(v){
+  if(v==null||v==='')return null;
+  if(typeof v==='number'&&v>30000&&v<80000&&typeof XLSX!=='undefined'){const d=XLSX.SSF.parse_date_code(v);return d?{y:d.y,m:d.m,d:d.d}:null;}
+  if(v instanceof Date&&!isNaN(v))return{y:v.getFullYear(),m:v.getMonth()+1,d:v.getDate()};
+  const s=String(v).trim();let r;
+  if((r=s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/)))return{d:+r[1],m:+r[2],y:+r[3]};
+  if((r=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/)))return{y:+r[1],m:+r[2],d:+r[3]};
+  if((r=s.match(/^(\d{1,2})[\s\-]([A-Za-z]{3})[A-Za-z]*[\s\-,]+(\d{4})$/))){const mi=MON.indexOf(r[2].toLowerCase());if(mi>=0)return{d:+r[1],m:mi+1,y:+r[3]};}
+  return null;
+}
+function detectForm(fileName,facs){
+  const n=String(fileName||'').toUpperCase();let r;
+  if((r=n.match(/(?:^|[^A-Z])([SPL])[\s_\-]*FORM/))||(r=n.match(/FORM[\s_\-]*([SPL])(?:[^A-Z]|$)/)))return r[1];
+  const types=Object.values(facs).map(f=>f[2].toLowerCase());
+  if(types.length&&types.every(t=>t.includes('sub centre')||t.includes('sub center')))return 'S';
+  return '';
+}
+function parseRows(rows,fileName){
+  let hr=-1;
+  for(let i=0;i<Math.min(rows.length,25);i++){if((rows[i]||[]).some(c=>clean(c).toLowerCase()==='facility id')){hr=i;break;}}
+  if(hr<0)throw new Error('No “Facility ID” column found. Upload the IHIP Consolidated Reporting Summary export with its header row unchanged.');
+  const H=rows[hr].map(c=>clean(c).toLowerCase());
+  const ci={id:H.indexOf('facility id'),block:H.indexOf('block name'),name:H.indexOf('facility name'),type:H.indexOf('facility type'),sub:H.findIndex(h=>h.startsWith('facility sub'))};
+  if(ci.block<0)ci.block=H.findIndex(h=>h.startsWith('block'));
+  const dateCols=[];
+  rows[hr].forEach((c,j)=>{const d=parseDateHeader(c);if(d&&d.d>=1&&d.d<=31&&d.m>=1&&d.m<=12&&d.y>2000)dateCols.push({j,d:d.d,key:d.y+'-'+pad(d.m)});});
+  if(!dateCols.length)throw new Error('No daily date columns (dd/mm/yyyy) found in the header row.');
+  const facs={},months={},unknown={};let cells=0;
+  for(let i=hr+1;i<rows.length;i++){
+    const r=rows[i]||[];const id=clean(r[ci.id]).replace(/\.0+$/,'');
+    if(!id||!/^[A-Za-z0-9_\-]+$/.test(id))continue;
+    const typ=ci.type>=0?clean(r[ci.type]):'';
+    facs[id]=[ci.block>=0?clean(r[ci.block]).toUpperCase():'—',ci.name>=0?clean(r[ci.name]):id,typ,ci.sub>=0?clean(r[ci.sub]):typ];
+    for(const dc of dateCols){
+      const raw=clean(r[dc.j]).toUpperCase();
+      const m=months[dc.key]||(months[dc.key]={});
+      if(!m[id])m[id]=BLANK;
+      if(!raw)continue;
+      const code=CODE_MAP[raw];
+      if(!code){unknown[raw]=(unknown[raw]||0)+1;continue;}
+      cells++;const s=m[id];m[id]=s.slice(0,dc.d-1)+code+s.slice(dc.d);
+    }
+  }
+  return{facs,months,days:dateCols.length,cells,unknown,form:detectForm(fileName,facs)};
+}
+/* overlay upload codes onto an existing month: only cells the upload actually carries are replaced */
+function mergeMonth(existing,incoming){
+  const fac=Object.assign({},existing||{});let added=0,changed=0;
+  for(const [id,s] of Object.entries(incoming)){
+    const base=fac[id]||BLANK;let out='';
+    for(let i=0;i<31;i++){const c=s[i];const b=base[i];if(c!=='.'){if(b==='.')added++;else if(b!==c)changed++;out+=c;}else out+=b;}
+    fac[id]=out;
+  }
+  return{fac,added,changed};
+}
+function bandOf(rate,target){if(rate==null)return'';if(rate===0)return'sil';if(rate<0.5)return'poor';if(rate<target/100)return'irr';return'reg';}
+/* aggregate one form over chosen months for chosen facility ids */
+function aggregate(monthDocs,months,ids){
+  const res={};
+  for(const id of ids){
+    const a={id,exp:0,y:0,z:0,n:0,longest:0,cur:0,lastRep:'',perMonth:{}};let run=0;
+    for(const m of months){
+      const s=(monthDocs[m]&&monthDocs[m][id])||BLANK;const pm={exp:0,rep:0,y:0,z:0,n:0};
+      for(let i=0;i<31;i++){const c=s[i];if(c==='.')continue;pm.exp++;
+        if(c==='N'){pm.n++;run++;if(run>a.longest)a.longest=run;}
+        else{run=0;pm.rep++;if(c==='Y')pm.y++;else pm.z++;a.lastRep=m+'-'+pad(i+1);}
+      }
+      a.perMonth[m]=pm;a.exp+=pm.exp;a.y+=pm.y;a.z+=pm.z;a.n+=pm.n;
+    }
+    a.cur=run;a.rep=a.y+a.z;a.rate=a.exp?a.rep/a.exp:null;a.nilShare=a.rep?a.z/a.rep:null;
+    res[id]=a;
+  }
+  return res;
+}
+if(typeof module!=='undefined')module.exports={parseRows,mergeMonth,aggregate,bandOf,detectForm};
+</script>
+
+<script>
+/* ===== app ===== */
+(function(){
+if(typeof document==='undefined')return;
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pct=(v,d=1)=>v==null?'—':(100*v).toFixed(d)+'%';
+const fmt=n=>n==null?'—':Number(n).toLocaleString('en-IN');
+const BAND_NAME={reg:'Regular',irr:'Irregular',poor:'Poor',sil:'Silent'};
+const BAND_VAR={reg:'var(--b-reg)',irr:'var(--b-irr)',poor:'var(--b-poor)',sil:'var(--b-sil)'};
+
+const S={
+  live:false,canWrite:false,canAdmin:false,writer:null,downloads:true,loadError:'',
+  months:{S:{},P:{},L:{}}, facs:{S:{},P:{},L:{}}, uploads:[], settings:{district:'Ganjam',state:'Odisha',target:80},
+  form:'S', from:'', to:'', block:'', type:'', sub:'', own:'', fac:'', band:'', search:'',
+  sort:{key:'rate',dir:1}, showAll:false, drill:'', pending:[], loaded:false, names:{}
+};
+try{const saved=JSON.parse(localStorage.getItem('spl-view')||'null');if(saved&&FORMS.includes(saved.form))S.form=saved.form;}catch(e){}
+
+const target=()=>Math.min(100,Math.max(1,Number(S.settings.target)||80));
+const monthsOf=F=>Object.keys(S.months[F]).sort();
+const ownership=f=>/private/i.test(f[2]+' '+f[3])?'Private':'Public';
+
+function facIds(F,opts={}){
+  const L=S.facs[F]||{};const out=[];
+  const q=S.search.trim().toLowerCase();
+  for(const [id,f] of Object.entries(L)){
+    if(S.block&&f[0]!==S.block&&!opts.ignoreBlock)continue;
+    if(opts.blockOnly){out.push(id);continue;}
+    if(S.type&&f[2]!==S.type)continue;
+    if(S.sub&&f[3]!==S.sub)continue;
+    if(S.own&&ownership(f)!==S.own)continue;
+    if(S.fac&&id!==S.fac)continue;
+    if(q&&!(f[1].toLowerCase().includes(q)||id.includes(q)))continue;
+    out.push(id);
+  }
+  return out;
+}
+function selMonths(F){const ms=monthsOf(F);return ms.filter(m=>(!S.from||m>=S.from)&&(!S.to||m<=S.to));}
+function sumAgg(aggs){const t={exp:0,rep:0,y:0,z:0,n:0};for(const a of aggs){t.exp+=a.exp;t.rep+=a.rep;t.y+=a.y;t.z+=a.z;t.n+=a.n;}t.rate=t.exp?t.rep/t.exp:null;t.nilShare=t.rep?t.z/t.rep:null;return t;}
+function monthTotals(F,ids,months){const agg=aggregate(S.months[F],months,ids);const out={};for(const m of months){const t={exp:0,rep:0,y:0,z:0,n:0};for(const id of ids){const p=agg[id].perMonth[m];t.exp+=p.exp;t.rep+=p.rep;t.y+=p.y;t.z+=p.z;t.n+=p.n;}t.rate=t.exp?t.rep/t.exp:null;out[m]=t;}return{out,agg};}
+
+/* ---------- filters ---------- */
+function opt(v,l,sel){return `<option value="${esc(v)}"${v===sel?' selected':''}>${esc(l)}</option>`;}
+function fillFilters(){
+  const F=S.form;const ms=monthsOf(F);
+  if(ms.length){
+    if(!ms.includes(S.to))S.to=ms[ms.length-1];
+    if(!ms.includes(S.from)||S.from>S.to)S.from=S.to;
+  }
+  $('#f-from').innerHTML=ms.map(m=>opt(m,monthLabel(m),S.from)).join('')||'<option>—</option>';
+  $('#f-to').innerHTML=ms.map(m=>opt(m,monthLabel(m),S.to)).join('')||'<option>—</option>';
+  const L=Object.entries(S.facs[F]||{});
+  const blocks=[...new Set(L.map(([,f])=>f[0]))].sort();
+  if(S.block&&!blocks.includes(S.block))S.block='';
+  $('#f-block').innerHTML=opt('','All blocks ('+blocks.length+')',S.block)+blocks.map(b=>opt(b,b,S.block)).join('');
+  const inB=L.filter(([,f])=>!S.block||f[0]===S.block);
+  const types=[...new Set(inB.map(([,f])=>f[2]))].sort();if(S.type&&!types.includes(S.type))S.type='';
+  $('#f-type').innerHTML=opt('','All types',S.type)+types.map(t=>opt(t,t,S.type)).join('');
+  const subs=[...new Set(inB.filter(([,f])=>!S.type||f[2]===S.type).map(([,f])=>f[3]))].sort();if(S.sub&&!subs.includes(S.sub))S.sub='';
+  $('#f-sub').innerHTML=opt('','All sub-types',S.sub)+subs.map(t=>opt(t,t,S.sub)).join('');
+  $('#f-own').value=S.own;
+  const facsIn=inB.filter(([,f])=>(!S.type||f[2]===S.type)&&(!S.sub||f[3]===S.sub)&&(!S.own||ownership(f)===S.own)).sort((a,b)=>a[1][1].localeCompare(b[1][1]));
+  if(S.fac&&!facsIn.some(([id])=>id===S.fac))S.fac='';
+  $('#f-fac').innerHTML=opt('','All facilities ('+facsIn.length+')',S.fac)+facsIn.map(([id,f])=>opt(id,f[1]+' · '+id,S.fac)).join('');
+  $('#f-band').value=S.band;
+  const chips=[];
+  if(S.block)chips.push(['block','Block: '+S.block]);if(S.type)chips.push(['type',S.type]);if(S.sub)chips.push(['sub',S.sub]);
+  if(S.own)chips.push(['own',S.own]);if(S.fac)chips.push(['fac',(S.facs[F][S.fac]||[])[1]||S.fac]);if(S.band)chips.push(['band',$('#f-band').selectedOptions[0].textContent]);
+  if(S.search)chips.push(['search','“'+S.search+'”']);
+  $('#active-chips').innerHTML=chips.map(([k,l])=>`<span class="chip">${esc(l)}<button type="button" data-clear="${k}" aria-label="Remove filter">×</button></span>`).join('');
+}
+function bindFilters(){
+  const on=(id,k)=>$(id).addEventListener('change',e=>{S[k]=e.target.value;if(k==='from'&&S.to<S.from)S.to=S.from;if(k==='to'&&S.from>S.to)S.from=S.to;S.showAll=false;render();});
+  on('#f-from','from');on('#f-to','to');on('#f-block','block');on('#f-type','type');on('#f-sub','sub');on('#f-own','own');on('#f-fac','fac');on('#f-band','band');
+  let t;$('#f-search').addEventListener('input',e=>{clearTimeout(t);t=setTimeout(()=>{S.search=e.target.value;render();},200);});
+  $('#f-reset').addEventListener('click',()=>{Object.assign(S,{block:'',type:'',sub:'',own:'',fac:'',band:'',search:'',from:'',to:''});$('#f-search').value='';render();});
+  $('#active-chips').addEventListener('click',e=>{const k=e.target.dataset.clear;if(!k)return;S[k]='';if(k==='search')$('#f-search').value='';render();});
+}
+
+/* ---------- form strip ---------- */
+function spark(vals,w=220,h=28){
+  const pts=vals.map((v,i)=>[vals.length>1?4+i*(w-8)/(vals.length-1):w/2,v==null?null:h-3-(h-6)*Math.max(0,Math.min(1,(v-0.5)/0.5))]).filter(p=>p[1]!=null);
+  if(!pts.length)return'';
+  const tY=h-3-(h-6)*((target()/100-0.5)/0.5);
+  const d=pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
+  const l=pts[pts.length-1];
+  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true"><line x1="0" x2="${w}" y1="${tY}" y2="${tY}" stroke="var(--muted)" stroke-dasharray="3 3" stroke-width="1" vector-effect="non-scaling-stroke"/><path d="${d}" fill="none" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke"/><circle cx="${l[0]}" cy="${l[1]}" r="2.5" fill="var(--accent)"/></svg>`;
+}
+function renderForms(){
+  $('#forms').innerHTML=FORMS.map(F=>{
+    const ms=monthsOf(F);const ids=facIds(F,{blockOnly:true});
+    if(!ms.length)return `<button type="button" class="formcard" data-form="${F}" aria-pressed="${S.form===F}"><span class="badge">${F}</span><span class="t">${FORM_NAME[F]}</span><span class="v">No data yet</span></button>`;
+    const {out}=monthTotals(F,ids,ms);
+    const sel=ms.filter(m=>(!S.from||m>=S.from)&&(!S.to||m<=S.to));
+    const use=sel.length?sel:[ms[ms.length-1]];
+    const t=sumAgg(use.map(m=>out[m]));
+    const per=aggregate(S.months[F],use,ids);const sil=Object.values(per).filter(a=>a.exp&&a.rep===0).length;
+    return `<button type="button" class="formcard" data-form="${F}" aria-pressed="${S.form===F}"><span class="badge">${F}</span><span class="t">${FORM_NAME[F]}</span><span class="v"><b>${pct(t.rate)}</b><span>${fmt(ids.length)} facilities${S.block?' in '+esc(S.block):''} · ${sil} silent</span></span>${spark(ms.map(m=>out[m].rate))}</button>`;
+  }).join('');
+}
+
+/* ---------- KPIs ---------- */
+function renderKPIs(ids,period,agg){
+  const F=S.form;const ms=monthsOf(F);const tot=sumAgg(Object.values(agg));
+  const facs=Object.values(agg).filter(a=>a.exp);
+  const meet=facs.filter(a=>a.rate>=target()/100).length;const sil=facs.filter(a=>a.rep===0).length;
+  const wk=facs.filter(a=>a.longest>=6).length;
+  let delta='';
+  const prevIdx=ms.indexOf(period[0])-1;
+  if(period.length===1&&prevIdx>=0){
+    const pm=ms[prevIdx];const pa=sumAgg(Object.values(aggregate(S.months[F],[pm],ids)));
+    if(pa.rate!=null&&tot.rate!=null){const d=(tot.rate-pa.rate)*100;delta=`<span class="delta ${d>=0?'up':'down'}">${d>=0?'▲':'▼'} ${Math.abs(d).toFixed(1)} pts vs ${monthShort(pm)}</span>`;}
+  }
+  const per=period.length?(period.length===1?monthLabel(period[0]):monthShort(period[0])+' – '+monthShort(period[period.length-1])):'—';
+  const k=(l,v,s,cls='')=>`<div class="kpi ${cls}"><span class="l">${l}</span><span class="v num" style="font-family:var(--f-disp)">${v}</span><span class="s">${s}</span></div>`;
+  $('#kpis').innerHTML=[
+    k('Reporting completeness',pct(tot.rate),(delta||'Target '+target()+'%')+` · ${esc(per)}`,'lead'),
+    k('Facilities meeting target',facs.length?`${meet}<span style="font-size:16px;color:var(--muted)"> / ${facs.length}</span>`:'—',facs.length?pct(meet/facs.length,0)+' of facilities ≥ '+target()+'%':''),
+    k('Silent facilities',fmt(sil),'No report on any expected day'),
+    k('Facility-days not reported',fmt(tot.n),'of '+fmt(tot.exp)+' expected reporting days'),
+    k('NIL share of reports',pct(tot.nilShare),fmt(tot.z)+' NIL of '+fmt(tot.rep)+' reports'),
+    k('Week-long gaps',fmt(wk),'Facilities with ≥ 6 consecutive missed days'),
+  ].join('');
+}
+
+/* ---------- written findings ---------- */
+function daysIn(F,m){const set=new Set();for(const s of Object.values(S.months[F][m]||{}))[...s].forEach((c,i)=>{if(c!=='.')set.add(i);});return set.size;}
+function renderFindings(ids,period,agg){
+  const F=S.form;const ms=monthsOf(F);const box=$('#findings');const tg=target();
+  if(!period.length||!ms.length){box.innerHTML='<li class="muted">Findings appear once data for this form is loaded.</li>';$('#findings-sub').textContent='';$('#findings-note').textContent='';return;}
+  const per=period.length===1?monthLabel(period[0]):monthLabel(period[0])+' to '+monthLabel(period[period.length-1]);
+  $('#findings-sub').textContent=F+' Form · '+per+(S.block?' · '+S.block+' block':'');
+  const tot=sumAgg(Object.values(agg));const facs=Object.values(agg).filter(a=>a.exp);const nm=id=>(S.facs[F][id]||[])[1]||id;const bk=id=>(S.facs[F][id]||[])[0]||'';
+  const L=[];
+  let s=`Reporting completeness was <b>${pct(tot.rate)}</b> (${fmt(tot.rep)} of ${fmt(tot.exp)} expected reporting days)`;
+  const pi=ms.indexOf(period[0])-1;
+  if(period.length===1&&pi>=0){const pa=sumAgg(Object.values(aggregate(S.months[F],[ms[pi]],ids)));if(pa.rate!=null){const d=(tot.rate-pa.rate)*100;s+=Math.abs(d)<0.05?`, unchanged from ${monthLabel(ms[pi])}`:`, ${d>0?'up':'down'} ${Math.abs(d).toFixed(1)} points from ${monthLabel(ms[pi])}`;}}
+  s+=tot.rate>=tg/100?`, above the ${tg}% target.`:`, <b>below</b> the ${tg}% target.`;L.push(s);
+  const below=facs.filter(a=>a.rate<tg/100);const sil=facs.filter(a=>!a.rep);
+  L.push(`<b>${below.length} of ${facs.length}</b> facilities (${pct(facs.length?below.length/facs.length:0,0)}) reported on fewer than ${tg}% of expected days`+(sil.length?`; <b>${sil.length}</b> did not report on any day (${sil.slice(0,3).map(a=>esc(nm(a.id))+', '+esc(bk(a.id))).join('; ')}${sil.length>3?' and others':''}).`:'; none was completely silent.'));
+  if(!S.block&&!S.fac){const bl=blockAgg(F,period).filter(b=>b.exp).sort((a,b)=>a.rate-b.rate);
+    if(bl.length>2){const lo=bl.slice(0,2),hi=bl[bl.length-1];L.push(`Lowest-reporting blocks: <b>${esc(lo[0].block)}</b> (${pct(lo[0].rate)}) and <b>${esc(lo[1].block)}</b> (${pct(lo[1].rate)}). Highest: ${esc(hi.block)} (${pct(hi.rate)}). ${bl.filter(b=>b.rate<tg/100).length} of ${bl.length} blocks are below target.`);}}
+  const cur=facs.filter(a=>a.cur>=3&&a.rep).sort((a,b)=>b.cur-a.cur);
+  if(cur.length)L.push(`<b>${cur.length}</b> facilit${cur.length>1?'ies were':'y was'} still not reporting at the end of the period (3 or more consecutive days), led by ${cur.slice(0,3).map(a=>esc(nm(a.id))+' ('+esc(bk(a.id))+', '+a.cur+' days)').join(', ')}. These are the first calls for follow-up.`);
+  const allAgg=sumAgg(Object.values(aggregate(S.months[F],ms,ids)));
+  if(tot.nilShare!=null&&allAgg.nilShare!=null){const d=(tot.nilShare-allAgg.nilShare)*100;L.push(`NIL reports made up ${pct(tot.nilShare)} of reports received`+(period.length<ms.length?` (${pct(allAgg.nilShare)} across all loaded months${Math.abs(d)>=1?', '+(d>0?'higher':'lower')+' than usual':''})`:'')+'.');}
+  box.innerHTML=L.map(x=>`<li>${x}</li>`).join('');
+  const notes=[];
+  for(const m of period){const mine=daysIn(F,m);const others=FORMS.filter(f=>f!==F&&S.months[f][m]).map(f=>[f,daysIn(f,m)]);const mx=Math.max(mine,...others.map(o=>o[1]));
+    if(mine<mx)notes.push(`the ${F} Form extract for ${monthLabel(m)} has ${mine} reporting days against ${mx} in ${others.filter(o=>o[1]===mx).map(o=>o[0]).join(' and ')} Form; the last day(s) may be missing from the download`);}
+  $('#findings-note').textContent=notes.length?'Data note: '+notes.join('; ')+'.':'Findings are written automatically from the uploaded IHIP data and refresh with every upload and filter change.';
+}
+function renderSources(period){
+  const F=S.form;const per=period.length?(period.length===1?monthLabel(period[0]):monthShort(period[0])+' – '+monthShort(period[period.length-1])):'';
+  const ms=monthsOf(F);const all=ms.length?monthShort(ms[0])+' – '+monthShort(ms[ms.length-1]):'';
+  document.querySelectorAll('[data-src]').forEach(el=>{el.textContent=`Source: IHIP Consolidated Reporting Summary, ${F} Form, ${el.dataset.src==='all'||el.closest('.panel').querySelector('#trend')?all:per}. Completeness = (Y + NIL) ÷ expected reporting days.`;});
+  const last=S.uploads.map(u=>u.at).sort().pop();
+  $('#foot').innerHTML=`<span>${esc(S.settings.credit||('Prepared for the District Surveillance Unit'+(S.settings.district?', '+S.settings.district:'')))}</span><span>Data: IHIP daily reporting status, S/P/L Forms${last?' · last updated '+esc(String(last).slice(0,10).split('-').reverse().join('/')):''}</span>`;
+}
+
+/* ---------- trend chart ---------- */
+function renderTrend(ids){
+  const F=S.form;const ms=monthsOf(F);const box=$('#trend');
+  $('#trend-h').textContent='Monthly reporting trend · '+F+' Form';
+  if(!ms.length){box.innerHTML='<div class="empty">No months loaded for this form yet.</div>';return;}
+  const {out}=monthTotals(F,ids,ms);
+  const W=Math.max(box.clientWidth||600,360),H=262,ml=36,mr=10,mt=22,mb=42;const iw=W-ml-mr,ih=H-mt-mb;
+  const bw=Math.min(46,iw/ms.length*0.62);const x=i=>ml+iw*(i+0.5)/ms.length;const y=v=>mt+ih*(1-v);
+  let g='';
+  for(const v of [0,0.25,0.5,0.75,1]){g+=`<line x1="${ml}" x2="${W-mr}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${ml-6}" y="${y(v)+4}" text-anchor="end">${v*100}%</text>`;}
+  ms.forEach((m,i)=>{const t=out[m];const cx=x(i);const inSel=(!S.from||m>=S.from)&&(!S.to||m<=S.to);
+    if(inSel)g+=`<rect x="${cx-iw/ms.length/2+2}" y="${mt-14}" width="${iw/ms.length-4}" height="${ih+14}" fill="var(--accent-soft)" rx="4"/>`;
+    g+=`<text x="${cx}" y="${H-24}" text-anchor="middle" class="${inSel?'lab':''}">${monthShort(m)}</text>`;
+  });
+  // stacks from the baseline: cases, then NIL (top of NIL = completeness), then not-reported on top
+  ms.forEach((m,i)=>{const t=out[m];if(!t.exp)return;const cx=x(i);let base=0;
+    for(const [k,c] of [['y','var(--y)'],['z','var(--nil)'],['n','var(--n)']]){const f=t[k]/t.exp;g+=`<rect x="${cx-bw/2}" y="${y(base+f)}" width="${bw}" height="${Math.max(0,ih*f)}" fill="${c}"/>`;base+=f;}
+    g+=`<rect x="${cx-bw/2-4}" y="${mt}" width="${bw+8}" height="${ih}" fill="transparent" data-tip="${esc(monthLabel(m)+'\nCompleteness '+pct(t.rate)+'\nReported (cases) '+fmt(t.y)+'\nNIL '+fmt(t.z)+'\nNot reported '+fmt(t.n)+'\nExpected '+fmt(t.exp))}"/>`;
+  });
+  // completeness line
+  const pts=ms.map((m,i)=>out[m].rate==null?null:[x(i),y(out[m].rate)]);
+  const d=pts.filter(Boolean).map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
+  g+=`<line x1="${ml}" x2="${W-mr}" y1="${y(target()/100)}" y2="${y(target()/100)}" stroke="var(--ink)" stroke-dasharray="5 4" stroke-width="1.2" opacity=".55"/>`;
+  g+=`<path d="${d}" fill="none" stroke="var(--ink)" stroke-width="2"/>`;
+  const valid=ms.map((m,i)=>[i,out[m].rate]).filter(v=>v[1]!=null);
+  if(valid.length>2){const lo=valid.reduce((a,b)=>b[1]<a[1]?b:a);const lx=x(lo[0]);
+    g+=`<path d="M${lx-4} ${H-6} L${lx} ${H-13} L${lx+4} ${H-6} Z" fill="var(--n)"/><text x="${lx>W-90?lx-7:lx+7}" y="${H-5}" text-anchor="${lx>W-90?'end':'start'}" class="lab" style="font-size:10.5px">Lowest month</text>`;}
+  pts.forEach((p,i)=>{if(!p)return;g+=`<circle cx="${p[0]}" cy="${p[1]}" r="3.2" fill="var(--panel)" stroke="var(--ink)" stroke-width="1.6" pointer-events="none"/><text x="${p[0]}" y="${Math.max(mt-4,p[1]-8)}" text-anchor="middle" class="big" pointer-events="none">${(out[ms[i]].rate*100).toFixed(1)}</text>`;});
+  box.innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Monthly reporting completeness, ${F} Form">${g}</svg>`;
+}
+
+/* ---------- blocks ---------- */
+function blockAgg(F,months){
+  const ids=facIds(F,{ignoreBlock:true});const agg=aggregate(S.months[F],months,ids);const by={};
+  for(const id of ids){const b=S.facs[F][id][0];(by[b]||(by[b]=[])).push(agg[id]);}
+  return Object.entries(by).map(([b,arr])=>{const t=sumAgg(arr);t.block=b;t.facs=arr.filter(a=>a.exp).length;t.sil=arr.filter(a=>a.exp&&!a.rep).length;t.below=arr.filter(a=>a.exp&&a.rate<target()/100).length;return t;});
+}
+function renderBlocks(period){
+  const F=S.form;const box=$('#blocks');
+  if(!period.length){box.innerHTML='<div class="empty">No data.</div>';return;}
+  const rows=blockAgg(F,period).filter(r=>r.exp).sort((a,b)=>b.rate-a.rate||a.block.localeCompare(b.block));
+  const dist=sumAgg(rows);
+  const W=Math.max(box.clientWidth||600,340),rh=22,mt=22,ml=Math.min(150,W*0.32),mr=54,H=mt+rows.length*rh+8;
+  const lo=Math.max(0,Math.floor((Math.min(...rows.map(r=>r.rate),target()/100)-0.05)*10)/10);
+  const x=v=>ml+(W-ml-mr)*(v-lo)/(1-lo);
+  let g='';
+  for(let v=lo;v<=1.0001;v+=0.1){g+=`<line x1="${x(v)}" x2="${x(v)}" y1="${mt-4}" y2="${H-6}" stroke="var(--line)"/><text x="${x(v)}" y="${mt-8}" text-anchor="middle">${Math.round(v*100)}</text>`;}
+  rows.forEach((r,i)=>{const yy=mt+i*rh;const b=bandOf(r.rate,target());const sel=S.block===r.block;
+    g+=`<g data-block="${esc(r.block)}" style="cursor:pointer" data-tip="${esc(r.block+'\nCompleteness '+pct(r.rate)+'\nFacilities '+r.facs+' · below target '+r.below+' · silent '+r.sil+'\nNot reported days '+fmt(r.n))}">
+      <rect x="0" y="${yy}" width="${W}" height="${rh}" fill="${sel?'var(--accent-soft)':'transparent'}"/>
+      <text x="${ml-8}" y="${yy+rh/2+4}" text-anchor="end" class="${sel?'lab':''}"><tspan class="big" fill="var(--muted)">${i+1}.</tspan> ${esc(r.block)}</text>
+      <rect x="${x(lo)}" y="${yy+4}" width="${Math.max(1,x(r.rate)-x(lo))}" height="${rh-8}" rx="2" fill="${BAND_VAR[b]}"/>
+      <text x="${x(r.rate)+5}" y="${yy+rh/2+4}" class="big">${(r.rate*100).toFixed(1)}</text></g>`;});
+  g+=`<line x1="${x(target()/100)}" x2="${x(target()/100)}" y1="${mt-2}" y2="${H-4}" stroke="var(--ink)" stroke-dasharray="5 4" opacity=".55"/>`;
+  if(dist.rate!=null)g+=`<line x1="${x(dist.rate)}" x2="${x(dist.rate)}" y1="${mt-2}" y2="${H-4}" stroke="var(--accent)" stroke-width="2"/>`;
+  box.innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Block completeness ranking">${g}</svg>`;
+  $('#band-legend').innerHTML=Object.entries(BAND_NAME).filter(([k])=>k!=='sil').map(([k,l])=>`<span><i style="background:${BAND_VAR[k]}"></i>${l}${k==='reg'?' ≥ '+target()+'%':k==='irr'?' 50–'+target()+'%':' &lt; 50%'}</span>`).join('')+`<span><i style="background:var(--accent);width:2px"></i>District ${pct(dist.rate)}</span><span><i style="border-left:2px dashed var(--ink);background:none;width:0"></i>Target</span>`;
+}
+function renderHeat(){
+  const F=S.form;const ms=monthsOf(F);const box=$('#heat');
+  if(!ms.length){box.innerHTML='<div class="empty">No data.</div>';return;}
+  const ids=facIds(F,{ignoreBlock:true});const agg=aggregate(S.months[F],ms,ids);const by={};
+  for(const id of ids){const b=S.facs[F][id][0];(by[b]||(by[b]=[])).push(agg[id]);}
+  const blocks=Object.keys(by).sort();
+  const cw=Math.max(46,Math.min(78,((box.clientWidth||900)-150)/(ms.length+1))),rh=22,ml=140,mt=24,W=ml+cw*(ms.length+1)+4,H=mt+rh*(blocks.length+1)+4;
+  let g='';
+  ms.forEach((m,j)=>{const sel=(!S.from||m>=S.from)&&(!S.to||m<=S.to);g+=`<text x="${ml+cw*j+cw/2}" y="16" text-anchor="middle" class="${sel?'lab':''}">${monthShort(m)}</text>`;});
+  g+=`<text x="${ml+cw*ms.length+cw/2}" y="16" text-anchor="middle" class="lab">All</text>`;
+  const cell=(x,y,arr,label,tipHead,attrs)=>{let exp=0,rep=0;for(const a of arr){exp+=a.e;rep+=a.r;}const r=exp?rep/exp:null;const b=bandOf(r,target());
+    const op=r==null?0:(b==='reg'?0.18+0.42*Math.min(1,(r-target()/100)/(1-target()/100+1e-9)):b==='irr'?0.55:0.6);
+    return `<g ${attrs} data-tip="${esc(tipHead+'\nCompleteness '+pct(r)+'\n'+fmt(rep)+' of '+fmt(exp)+' days')}"><rect x="${x+1}" y="${y+1}" width="${cw-2}" height="${rh-2}" rx="3" fill="${r==null?'var(--none)':BAND_VAR[b]}" fill-opacity="${r==null?1:op.toFixed(2)}"/><text x="${x+cw/2}" y="${y+rh/2+4}" text-anchor="middle" class="big">${r==null?'':(r*100).toFixed(0)}</text></g>`;};
+  const rowsAll=[...blocks,'District'];
+  rowsAll.forEach((b,i)=>{const yy=mt+i*rh;const arr=b==='District'?Object.values(agg):by[b];const sel=S.block===b;
+    g+=`<text x="${ml-8}" y="${yy+rh/2+4}" text-anchor="end" class="${sel||b==='District'?'lab':''}">${esc(b)}</text>`;
+    ms.forEach((m,j)=>{g+=cell(ml+cw*j,yy,arr.map(a=>({e:a.perMonth[m].exp,r:a.perMonth[m].rep})),'',b+' · '+monthLabel(m),b==='District'?`data-hm="${m}" style="cursor:pointer"`:`data-hb="${esc(b)}" data-hm="${m}" style="cursor:pointer"`);});
+    g+=cell(ml+cw*ms.length,yy,arr.map(a=>({e:a.exp,r:a.rep})),'',b+' · all months',b==='District'?'':`data-hb="${esc(b)}" style="cursor:pointer"`);
+    if(b==='District')g+=`<line x1="${ml-130}" x2="${W}" y1="${yy}" y2="${yy}" stroke="var(--line)"/>`;
+  });
+  box.innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="${W}" style="min-width:${Math.min(W,560)}px;max-width:100%" role="img" aria-label="Block by month completeness">${g}</svg>`;
+}
+
+/* ---------- facility table ---------- */
+const COLS=[
+  {k:'block',l:'Block'},{k:'name',l:'Facility'},{k:'id',l:'ID'},{k:'type',l:'Sub-type'},
+  {k:'exp',l:'Expected',r:1},{k:'y',l:'Cases (Y)',r:1},{k:'z',l:'NIL',r:1},{k:'n',l:'Not rep. (N)',r:1},
+  {k:'rate',l:'Completeness',r:1},{k:'nilShare',l:'NIL share',r:1},{k:'longest',l:'Longest gap',r:1},{k:'cur',l:'Current gap',r:1},
+  {k:'lastRep',l:'Last reported'},{k:'band',l:'Band'},{k:'months',l:'By month',nosort:1}
+];
+function facRows(agg){
+  const F=S.form;const tg=target()/100;
+  let rows=Object.values(agg).filter(a=>a.exp).map(a=>{const f=S.facs[F][a.id];return Object.assign({},a,{block:f[0],name:f[1],type:f[3]||f[2],band:bandOf(a.rate,target())});});
+  if(S.band==='below')rows=rows.filter(r=>r.rate<tg);else if(S.band)rows=rows.filter(r=>r.band===S.band);
+  const {key,dir}=S.sort;const bo={sil:0,poor:1,irr:2,reg:3};
+  rows.sort((a,b)=>{let va=a[key],vb=b[key];if(key==='band'){va=bo[va];vb=bo[vb];}if(va==null)va=-1;if(vb==null)vb=-1;
+    const c=typeof va==='string'?va.localeCompare(vb):va-vb;return c*dir||a.rate-b.rate||a.name.localeCompare(b.name);});
+  return rows;
+}
+function renderTable(agg,period){
+  const rows=facRows(agg);const lim=S.showAll?rows.length:30;
+  $('#factable thead').innerHTML='<tr>'+COLS.map(c=>`<th class="${c.r?'r':''}" data-sort="${c.nosort?'':c.k}" ${S.sort.key===c.k?`aria-sort="${S.sort.dir>0?'ascending':'descending'}"`:''}>${c.l}</th>`).join('')+'</tr>';
+  const tg=target();
+  $('#factable tbody').innerHTML=rows.slice(0,lim).map(r=>`<tr data-id="${esc(r.id)}" class="${S.drill===r.id?'sel':''}">
+    <td>${esc(r.block)}</td><td>${esc(r.name)}</td><td class="num">${esc(r.id)}</td><td class="muted">${esc(r.type)}</td>
+    <td class="r num">${r.exp}</td><td class="r num">${r.y}</td><td class="r num">${r.z}</td><td class="r num">${r.n}</td>
+    <td class="r num"><b>${pct(r.rate)}</b></td><td class="r num">${pct(r.nilShare,0)}</td>
+    <td class="r num">${r.longest?r.longest+' d':'–'}</td><td class="r num${r.cur>=3?' err':''}">${r.cur?r.cur+' d':'–'}</td>
+    <td class="num">${r.lastRep?r.lastRep.split('-').reverse().join('/'):'<span class="err">never</span>'}</td>
+    <td><span class="pill ${r.band}">${BAND_NAME[r.band]}</span></td>
+    <td><span class="mstrip">${period.map(m=>{const p=r.perMonth[m];const v=p.exp?p.rep/p.exp:null;const b=bandOf(v,tg);return `<span style="background:${v==null?'var(--none)':BAND_VAR[b]}" data-tip="${esc(monthLabel(m)+': '+pct(v)+' ('+p.rep+'/'+p.exp+')')}"></span>`;}).join('')}</span></td></tr>`).join('')
+    ||`<tr><td colspan="${COLS.length}" class="empty">No facilities match these filters.</td></tr>`;
+  $('#fac-count').textContent=rows.length?`Showing ${Math.min(lim,rows.length)} of ${rows.length} facilities`:'';
+  $('#fac-more').hidden=rows.length<=lim;
+  $('#fac-sub').textContent=(period.length?(period.length===1?monthLabel(period[0]):monthLabel(period[0])+' to '+monthLabel(period[period.length-1])):'')+' · click a row for the daily record';
+  return rows;
+}
+function renderDrill(){
+  const F=S.form;const id=S.drill;const f=S.facs[F][id];
+  if(!id||!f){$('#drill').hidden=true;return;}
+  const ms=monthsOf(F);const agg=aggregate(S.months[F],ms,[id])[id];
+  $('#drill').hidden=false;$('#drill-h').textContent=f[1]+' · '+F+' Form';
+  $('#drill-sub').textContent=`${f[0]} block · ${f[3]||f[2]} · ID ${id} · all loaded months: ${pct(agg.rate)} complete, longest gap ${agg.longest} days`;
+  let h=`<div class="dayrow"><span></span>${Array.from({length:31},(_,i)=>`<span class="h">${i+1}</span>`).join('')}<span class="h">%</span></div>`;
+  for(const m of ms){const s=(S.months[F][m]||{})[id]||BLANK;const p=agg.perMonth[m];
+    h+=`<div class="dayrow"><span class="muted">${monthShort(m)}</span>${[...s].map((c,i)=>{const cls=c==='Y'?'Y':c==='0'?'Z':c==='N'?'N':'';const lab=c==='Y'?'Reported (cases)':c==='0'?'NIL':c==='N'?'Not reported':'No reporting day';return `<span class="c ${cls}" ${cls?'':'style="background:var(--none);opacity:.5"'} data-tip="${pad(i+1)}/${m.slice(5)}/${m.slice(0,4)}: ${lab}"></span>`;}).join('')}<span class="num" style="text-align:right">${p.exp?(100*p.rep/p.exp).toFixed(0):'–'}</span></div>`;}
+  $('#drill-days').innerHTML=h;
+}
+
+/* ---------- data panel ---------- */
+function renderData(){
+  const allM=[...new Set(FORMS.flatMap(monthsOf))].sort();
+  let h='<tr><th></th>'+allM.map(m=>`<th>${monthShort(m)}</th>`).join('')+'</tr>';
+  for(const F of FORMS){h+=`<tr><th>${F}</th>`+allM.map(m=>{const d=S.months[F][m];if(!d)return'<td class="muted">–</td>';const n=Object.keys(d).length;
+    return `<td class="has" title="${n} facilities">${n}${S.canAdmin?` <button type="button" data-del="${F}_${m}" aria-label="Remove ${F} Form ${monthLabel(m)}">×</button>`:''}</td>`;}).join('')+'</tr>';}
+  $('#coverage').innerHTML=allM.length?h:'<tr><td class="muted">No data yet</td></tr>';
+  const ups=[...S.uploads].sort((a,b)=>String(b.at).localeCompare(String(a.at))).slice(0,12);
+  $('#uplog').innerHTML=ups.map(u=>{const who=u.by||'—';
+    return `<div><b>${esc(u.form)} Form</b> · ${esc((u.months||[]).map(monthShort).join(', '))} <span class="muted">· ${esc(u.file||'')} · ${fmt(u.facilities)} facilities · ${esc(who)} · ${esc(String(u.at||'').slice(0,10).split('-').reverse().join('/'))}</span></div>`;}).join('')||'<span class="muted">No uploads yet</span>';
+  const writable=!!S.canWrite;
+  $('#u-who').innerHTML=S.writer?`Uploading as <b>${esc(S.writer.name)}</b> · <button type="button" class="linkbtn" data-lock>Lock uploads</button>`:(S.live?'':'Preview mode: files you load stay in this browser tab until the data store is connected.');
+  $('#upload-area').hidden=!writable;$('#upload-ro').hidden=writable;
+  $('#settings-area').hidden=!S.canAdmin||!S.live;
+  if(S.canAdmin){if(!document.activeElement||!document.activeElement.closest('#settings-area')){$('#s-district').value=S.settings.district||'';$('#s-state').value=S.settings.state||'';$('#s-target').value=target();$('#s-credit').value=S.settings.credit||'';}}
+  renderPending();
+}
+function renderPending(){
+  $('#pending').innerHTML=S.pending.map((p,i)=>{
+    if(p.error)return `<div class="pcard"><div class="row"><b>${esc(p.file)}</b><span class="err">${esc(p.error)}</span><button type="button" data-discard="${i}">Dismiss</button></div></div>`;
+    const F=p.form;const ms=Object.keys(p.parsed.months).sort();
+    const existing=F?ms.filter(m=>S.months[F][m]):[];const newFac=F?Object.keys(p.parsed.facs).filter(id=>!S.facs[F][id]).length:0;
+    const unk=Object.entries(p.parsed.unknown);
+    return `<div class="pcard"><div class="row"><b>${esc(p.file)}</b>
+      <label style="display:flex;gap:6px;align-items:center">Form <select data-form-of="${i}" style="width:auto">${opt('','Choose…',F)}${FORMS.map(x=>opt(x,x+' Form',F)).join('')}</select></label>
+      ${F?'':'<span class="warn">Choose the form: the file name does not say S, P or L.</span>'}</div>
+      <div class="row muted"><span>${fmt(Object.keys(p.parsed.facs).length)} facilities${F&&newFac?` (<span class="ok">${newFac} new</span>)`:''}</span><span>${p.parsed.days} reporting days</span><span>${fmt(p.parsed.cells)} status cells</span>
+      <span>Months: ${ms.map(m=>`<b style="color:var(--ink)">${monthShort(m)}</b>${existing.includes(m)?' (update)':' (new)'}`).join(', ')}</span></div>
+      ${unk.length?`<div class="row warn">Unrecognised values skipped: ${esc(unk.map(([k,v])=>k+' ×'+v).join(', '))}</div>`:''}
+      <div class="row"><button type="button" class="primary" data-commit="${i}" ${F&&!p.busy?'':'disabled'}>${p.busy?'Adding…':'Add to dashboard'}</button><button type="button" data-discard="${i}" ${p.busy?'disabled':''}>Discard</button>${p.msg?`<span class="${p.msgCls||''}">${esc(p.msg)}</span>`:''}</div></div>`;}).join('');
+}
+async function readFile(file){
+  const buf=await file.arrayBuffer();
+  const wb=XLSX.read(buf,{type:'array',cellDates:false});
+  let best=null;
+  for(const name of wb.SheetNames){const rows=XLSX.utils.sheet_to_json(wb.Sheets[name],{header:1,raw:true,defval:''});
+    try{const p=parseRows(rows,file.name);if(!best||Object.keys(p.facs).length>Object.keys(best.facs).length)best=p;}catch(e){if(!best&&name===wb.SheetNames[wb.SheetNames.length-1])throw e;}}
+  if(!best)throw new Error('No sheet in this file has the IHIP reporting layout.');
+  return best;
+}
+async function addFiles(list){
+  if(typeof XLSX==='undefined'){S.pending.push({file:'Upload',error:'The spreadsheet reader did not load. Reload the page and try again.'});renderPending();return;}
+  for(const file of list){
+    try{const parsed=await readFile(file);S.pending.push({file:file.name,parsed,form:parsed.form});}
+    catch(e){S.pending.push({file:file.name,error:e.message||String(e)});}
+  }
+  renderPending();
+}
+async function commit(i){
+  const p=S.pending[i];const F=p.form;if(!F)return;p.busy=true;p.msg='';renderPending();
+  try{
+    const ms=Object.keys(p.parsed.months).sort();let added=0,changed=0;
+    const now=new Date().toISOString();const ops=[];const newMonths={};
+    for(const m of ms){
+      const r=mergeMonth(S.months[F][m],p.parsed.months[m]);added+=r.added;changed+=r.changed;newMonths[m]=r.fac;
+      ops.push({op:'set',path:'months/'+F+'_'+m,data:{form:F,month:m,fac:r.fac,updatedAt:now,source:p.file}});
+    }
+    const list=Object.assign({},S.facs[F],p.parsed.facs);
+    ops.push({op:'set',path:'facilities/'+F,data:{form:F,list,updatedAt:now}});
+    const log={form:F,file:p.file,months:ms,facilities:Object.keys(p.parsed.facs).length,added,changed,at:now,by:S.writer?S.writer.name:'Preview'};
+    ops.push({op:'set',path:'uploads/u'+now.replace(/\D/g,'')+Math.random().toString(36).slice(2,6),data:log});
+    if(S.live)await writeOps(ops);
+    Object.assign(S.months[F],newMonths);S.facs[F]=list;S.uploads.push(log);
+    S.pending.splice(i,1);S.form=F;S.from='';S.to='';
+    flash(`${F} Form added: ${ms.map(monthShort).join(', ')} · ${fmt(added)} new cells, ${fmt(changed)} corrected`);
+    render();
+  }catch(e){
+    p.busy=false;
+    if(e&&e.code==='bad_key'){lockUploads();p.msg='The upload passcode is not valid any more. Unlock again with the current passcode.';}
+    else p.msg='Could not save: '+(e&&e.message||e)+'. Check the internet connection and try again.';
+    p.msgCls='err';renderPending();renderData();
+  }
+}
+let flashT;function flash(t){const n=$('#mode-note');n.hidden=false;n.style.borderLeftColor='var(--b-reg)';n.textContent=t;clearTimeout(flashT);flashT=setTimeout(()=>{setModeNote();},6000);}
+function setModeNote(){const n=$('#mode-note');n.style.borderLeftColor='';
+  if(S.loaded&&!S.live&&S.loadError!=='view_key'){n.hidden=false;n.textContent=S.loadError==='not_configured'?'The data store is not connected yet: add the Google Apps Script web app address to config.js (see the setup guide). Files you load below stay in this browser tab only.':'Could not reach the data store just now. Check the internet connection, then use Refresh at the top of the page.';}
+  else n.hidden=true;}
+
+/* ---------- downloads ---------- */
+function xlsxBlob(sheets){const wb=XLSX.utils.book_new();for(const [name,aoa,widths] of sheets){const ws=XLSX.utils.aoa_to_sheet(aoa);if(widths)ws['!cols']=widths.map(w=>({wch:w}));XLSX.utils.book_append_sheet(wb,ws,name.slice(0,31));}
+  return new Blob([XLSX.write(wb,{type:'array',bookType:'xlsx'})]);}
+function save(filename,blob){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),4000);}
+function periodTag(period){return period.length===1?period[0]:period[0]+'_to_'+period[period.length-1];}
+function bindDownloads(){
+  $('#dl-fac').addEventListener('click',()=>{const F=S.form;const period=selMonths(F);const agg=aggregate(S.months[F],period,facIds(F));const rows=facRows(agg);
+    const aoa=[[`${S.settings.district||''} · ${F} Form · facility-wise reporting status · ${period.map(monthLabel).join(', ')}`],[],
+      ['Block','Facility ID','Facility name','Facility type','Sub-type','Expected days','Reported (cases)','NIL','Not reported','Completeness %','NIL share %','Longest gap (days)','Current gap (days)','Last reported','Band',...period.map(m=>monthShort(m)+' %')]];
+    for(const r of rows){const f=S.facs[F][r.id];aoa.push([r.block,r.id,r.name,f[2],f[3],r.exp,r.y,r.z,r.n,+(100*r.rate).toFixed(1),r.nilShare==null?'':+(100*r.nilShare).toFixed(1),r.longest,r.cur,r.lastRep?r.lastRep.split('-').reverse().join('/'):'never',BAND_NAME[r.band],...period.map(m=>{const p=r.perMonth[m];return p.exp?+(100*p.rep/p.exp).toFixed(1):'';})]);}
+    const bl=blockAgg(F,period).filter(b=>b.exp).sort((a,b)=>b.rate-a.rate);
+    const baoa=[['Rank','Block','Facilities','Expected days','Reported','NIL','Not reported','Completeness %','Below target','Silent']];bl.forEach((b,i)=>baoa.push([i+1,b.block,b.facs,b.exp,b.rep,b.z,b.n,+(100*b.rate).toFixed(1),b.below,b.sil]));
+    save(`${F}_Form_reporting_status_${periodTag(period)}.xlsx`,xlsxBlob([['Facility status',aoa,[16,11,30,22,22,9,9,7,9,10,9,9,9,12,10]],['Block summary',baoa,[6,18,9,10,9,7,9,10,9,7]]]));});
+  $('#dl-reg').addEventListener('click',()=>{const F=S.form;const period=selMonths(F);const ids=facIds(F).sort((a,b)=>{const fa=S.facs[F][a],fb=S.facs[F][b];return fa[0].localeCompare(fb[0])||fa[1].localeCompare(fb[1]);});
+    const cols=[];for(const m of period){const present=new Set();for(const id of ids){const s=(S.months[F][m]||{})[id];if(s)[...s].forEach((c,i)=>{if(c!=='.')present.add(i);});}[...present].sort((a,b)=>a-b).forEach(i=>cols.push([m,i]));}
+    const aoa=[['Sl.No','Block Name','Facility ID','Facility Name','Facility Type','Facility Sub-Type',...cols.map(([m,i])=>pad(i+1)+'/'+m.slice(5)+'/'+m.slice(0,4))]];
+    ids.forEach((id,k)=>{const f=S.facs[F][id];aoa.push([k+1,f[0],id,f[1],f[2],f[3],...cols.map(([m,i])=>{const c=((S.months[F][m]||{})[id]||BLANK)[i];return c==='Y'?'Y':c==='0'?'NIL':c==='N'?'N':'';})]);});
+    save(`${F}_Form_register_${periodTag(period)}.xlsx`,xlsxBlob([['Consolidated Reporting Summary',aoa]]));});
+}
+
+/* ---------- render ---------- */
+function render(){
+  try{localStorage.setItem('spl-view',JSON.stringify({form:S.form}));}catch(e){}
+  const F=S.form;
+  const d=S.settings.district,st=S.settings.state;
+  $('#hdr-title').textContent=(d?d+' ':'District ')+'S·P·L Reporting Monitor';document.title=$('#hdr-title').textContent;
+  $('#hdr-eyebrow').textContent='IDSP · IHIP daily reporting'+(st?' · '+st:'');
+  $('#def-target').textContent=target();document.querySelectorAll('.tgt-n').forEach(e=>e.textContent=target());
+  const allM=[...new Set(FORMS.flatMap(monthsOf))].sort();
+  const last=S.uploads.map(u=>u.at).sort().pop();
+  $('#hdr-meta').innerHTML=S.loaded?(allM.length?`<span>Data ${monthShort(allM[0])} – ${monthShort(allM[allM.length-1])}</span><span>${FORMS.map(f=>f+' '+Object.keys(S.facs[f]).length).join(' · ')} facilities</span>${last?`<span>Last update ${esc(String(last).slice(0,10).split('-').reverse().join('/'))}</span>`:''}`:'<span>No data loaded yet</span>')+(S.live?'<button type="button" class="linkbtn hdr-refresh" data-refresh>Refresh</button>':''):'<span>Loading reporting data…</span>';
+  fillFilters();renderForms();
+  const period=selMonths(F);const ids=facIds(F);
+  const agg=aggregate(S.months[F],period,ids);
+  if(!monthsOf(F).length){
+    $('#kpis').innerHTML=`<div class="kpi" style="grid-column:1/-1"><span class="l">${S.loaded?'No '+F+' Form data yet':'Loading…'}</span><span class="s">${S.loaded?'Add the IHIP export for this form in “Add monthly data” at the bottom of the page.':'Reading the shared dashboard data.'}</span></div>`;
+  } else renderKPIs(ids,period,agg);
+  renderFindings(ids,period,agg);renderSources(period);
+  renderTrend(ids);renderBlocks(period);renderHeat();renderTable(agg,period);renderDrill();renderData();setModeNote();
+  const dl=!!S.downloads&&typeof XLSX!=='undefined'&&period.length>0;$('#dl-fac').hidden=!dl;$('#dl-reg').hidden=!dl;
+}
+let rq;function scheduleRender(){cancelAnimationFrame(rq);rq=requestAnimationFrame(render);}
+
+/* ---------- events ---------- */
+document.addEventListener('click',e=>{
+  const fc=e.target.closest('[data-form]');if(fc){S.form=fc.dataset.form;S.from='';S.to='';S.drill='';S.showAll=false;render();return;}
+  const bl=e.target.closest('[data-block]');if(bl){S.block=S.block===bl.dataset.block?'':bl.dataset.block;S.fac='';render();return;}
+  const hm=e.target.closest('[data-hm],[data-hb]');if(hm){if(hm.dataset.hb!==undefined)S.block=hm.dataset.hb;if(hm.dataset.hm){S.from=S.to=hm.dataset.hm;}S.fac='';render();return;}
+  const th=e.target.closest('th[data-sort]');if(th&&th.dataset.sort){const k=th.dataset.sort;S.sort=S.sort.key===k?{key:k,dir:-S.sort.dir}:{key:k,dir:['rate','nilShare','block','name','id','type','band','lastRep'].includes(k)?1:-1};render();return;}
+  const tr=e.target.closest('#factable tbody tr[data-id]');if(tr){S.drill=S.drill===tr.dataset.id?'':tr.dataset.id;render();if(S.drill)$('#drill').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'nearest'});return;}
+  const c=e.target.closest('[data-commit]');if(c){commit(+c.dataset.commit);return;}
+  const x=e.target.closest('[data-discard]');if(x){S.pending.splice(+x.dataset.discard,1);renderPending();return;}
+  const del=e.target.closest('[data-del]');if(del){const k=del.dataset.del;const [F,m]=k.split('_');
+    $('#cov-confirm').innerHTML=`<span>Remove all ${F} Form data for ${monthLabel(m)} from the dashboard?</span><button type="button" class="danger" data-delok="${k}">Remove</button><button type="button" data-delno>Cancel</button>`;return;}
+  const ok=e.target.closest('[data-delok]');if(ok){const k=ok.dataset.delok;const [F,m]=k.split('_');$('#cov-confirm').innerHTML='';
+    (async()=>{try{if(S.live)await writeOps([{op:'delete',path:'months/'+k}]);delete S.months[F][m];render();flash(`${F} Form ${monthLabel(m)} removed.`);}catch(err){flash('Could not remove: '+(err.message||err.code));}})();return;}
+  if(e.target.closest('[data-delno]')){$('#cov-confirm').innerHTML='';return;}
+  if(e.target.closest('[data-refresh]')){loadAll();return;}
+  if(e.target.closest('[data-lock]')){lockUploads();render();return;}
+});
+document.addEventListener('change',e=>{const s=e.target.closest('[data-form-of]');if(s){S.pending[+s.dataset.formOf].form=s.value;renderPending();}});
+$('#fac-more').addEventListener('click',()=>{S.showAll=true;render();});
+$('#drill-close').addEventListener('click',()=>{S.drill='';render();});
+$('#file').addEventListener('change',e=>{addFiles([...e.target.files]);e.target.value='';});
+const drop=$('#drop');
+['dragenter','dragover'].forEach(t=>drop.addEventListener(t,e=>{e.preventDefault();drop.classList.add('over');}));
+['dragleave','drop'].forEach(t=>drop.addEventListener(t,e=>{e.preventDefault();drop.classList.remove('over');}));
+drop.addEventListener('drop',e=>addFiles([...e.dataTransfer.files]));
+$('#s-save').addEventListener('click',async()=>{const v={district:$('#s-district').value.trim(),state:$('#s-state').value.trim(),target:Math.min(100,Math.max(1,+$('#s-target').value||80)),credit:$('#s-credit').value.trim()};
+  try{await writeOps([{op:'set',path:'settings/main',data:v}]);S.settings=v;$('#s-msg').textContent='Settings saved.';render();}catch(e){$('#s-msg').textContent='Could not save settings: '+(e.message||e.code);}});
+const tip=$('#tip');
+document.addEventListener('pointermove',e=>{const t=e.target.closest&&e.target.closest('[data-tip]');if(!t){tip.style.opacity=0;return;}
+  tip.textContent=t.getAttribute('data-tip');tip.style.opacity=1;const r=tip.getBoundingClientRect();
+  let x=e.clientX+14,y=e.clientY+14;if(x+r.width>innerWidth-8)x=e.clientX-r.width-14;if(y+r.height>innerHeight-8)y=e.clientY-r.height-14;tip.style.left=Math.max(8,x)+'px';tip.style.top=Math.max(8,y)+'px';});
+document.addEventListener('pointerleave',()=>tip.style.opacity=0);
+let rw;addEventListener('resize',()=>{clearTimeout(rw);rw=setTimeout(scheduleRender,150);});
+bindFilters();bindDownloads();render();
+
+/* ---------- data store (Google Apps Script web app) ---------- */
+const CFG=window.SPL_CONFIG||{};const API=String(CFG.apiUrl||'').trim();
+function getLS(k){try{return localStorage.getItem(k)||'';}catch(e){return'';}}
+function setLS(k,v){try{if(v)localStorage.setItem(k,v);else localStorage.removeItem(k);}catch(e){}}
+async function api(method,body){
+  if(!API)throw Object.assign(new Error('not configured'),{code:'not_configured'});
+  const res=method==='GET'
+    ?await fetch(API+(API.includes('?')?'&':'?')+'action=all&key='+encodeURIComponent(getLS('spl-view-key'))+'&t='+Date.now())
+    :await fetch(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body)});
+  if(!res.ok)throw Object.assign(new Error('the data store answered '+res.status),{code:'http'});
+  const j=await res.json();
+  if(!j.ok)throw Object.assign(new Error(j.message||j.error||'error'),{code:j.error||'error'});
+  return j;
+}
+function writeOps(ops){return api('POST',{action:'write',key:S.writer&&S.writer.key,name:S.writer&&S.writer.name,ops});}
+async function loadAll(){
+  try{
+    const j=await api('GET');const m={S:{},P:{},L:{}},f={S:{},P:{},L:{}},ups=[];let st=null;
+    for(const d of j.docs||[]){const [c,id]=String(d.path).split('/');const v=d.data||{};
+      if(c==='months'&&m[v.form])m[v.form][v.month]=v.fac||{};
+      else if(c==='facilities'&&f[v.form])f[v.form]=v.list||{};
+      else if(c==='uploads')ups.push(v);
+      else if(c==='settings'&&id==='main')st=v;}
+    S.months=m;S.facs=f;S.uploads=ups;if(st)S.settings=Object.assign({district:'',state:'',target:80},st);
+    S.live=true;S.loadError='';$('#gate').hidden=true;
+  }catch(e){
+    S.live=false;S.loadError=e.code||'error';
+    if(e.code==='view_key'){$('#gate').hidden=false;$('#g-msg').textContent=getLS('spl-view-key')?'That access code is not correct.':'';}
+  }
+  if(!API)S.canWrite=true;
+  S.loaded=true;render();
+}
+function lockUploads(){S.writer=null;S.canWrite=!API;S.canAdmin=false;setLS('spl-writer','');}
+$('#u-go').addEventListener('click',async()=>{
+  const name=$('#u-name').value.trim(),key=$('#u-key').value;const msg=$('#u-msg');
+  if(!name||!key){msg.textContent='Enter your name and the upload passcode.';return;}
+  msg.textContent='Checking…';
+  try{await api('POST',{action:'auth',key});S.writer={name,key};S.canWrite=S.canAdmin=true;setLS('spl-writer',JSON.stringify(S.writer));msg.textContent='';$('#u-key').value='';render();}
+  catch(e){msg.textContent=e.code==='bad_key'?'That passcode is not correct.':'Could not check the passcode: '+e.message;}
+});
+$('#g-go').addEventListener('click',()=>{setLS('spl-view-key',$('#g-key').value.trim());$('#g-msg').textContent='Opening…';loadAll();});
+$('#g-key').addEventListener('keydown',e=>{if(e.key==='Enter')$('#g-go').click();});
+try{const w=JSON.parse(getLS('spl-writer')||'null');if(w&&w.name&&w.key&&API){S.writer=w;S.canWrite=S.canAdmin=true;}}catch(e){}
+loadAll();
+setInterval(()=>{if(document.visibilityState==='visible'&&S.live&&!S.pending.length)loadAll();},10*60*1000);
+})();
+</script>
+</body>
+</html>
